@@ -37,6 +37,16 @@ public class TGasPlanTask implements Serializable {
     @ApiModelProperty(value = "巡检派单事项号")
     private String itemNo;
 
+    /** 关联管段底档 t_gas_pipe.id(NULL为未关联) */
+    @TableField("site_id")
+    @ApiModelProperty(value = "关联管段底档")
+    private Long siteId;
+
+    /** 关联管段底档代号(冗余) */
+    @TableField("site_no")
+    @ApiModelProperty(value = "关联管段底档代号")
+    private String siteNo;
+
     /** 该动手那一天的最后一刻 */
     @TableField("due_at")
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
@@ -53,9 +63,9 @@ public class TGasPlanTask implements Serializable {
     @ApiModelProperty(value = "派单事由与受派班组记要")
     private String content;
 
-    /** 条目情形 0待派 1已派 2派不出去 */
+    /** 条目情形 0待派 1已派 2派不出去 3已取消(管段停用) */
     @TableField("status")
-    @ApiModelProperty(value = "条目情形 0待派 1已派 2派不出去")
+    @ApiModelProperty(value = "条目情形 0待派 1已派 2派不出去 3已取消(管段停用)")
     private Integer status;
 
     /** 删除标记 0正常 1删除 */
@@ -114,6 +124,22 @@ public class TGasPlanTask implements Serializable {
 
     public void setItemNo(String itemNo) {
         this.itemNo = itemNo;
+    }
+
+    public Long getSiteId() {
+        return siteId;
+    }
+
+    public void setSiteId(Long siteId) {
+        this.siteId = siteId;
+    }
+
+    public String getSiteNo() {
+        return siteNo;
+    }
+
+    public void setSiteNo(String siteNo) {
+        this.siteNo = siteNo;
     }
 
     public Date getDueAt() {

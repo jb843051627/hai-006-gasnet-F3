@@ -3,8 +3,10 @@ package com.fc.v2.service.impl;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,7 +14,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
+import com.fc.v2.mapper.auto.TGasPipeMapper;
 import com.fc.v2.mapper.auto.TGasPlanTaskMapper;
+import com.fc.v2.model.auto.TGasPipe;
 import com.fc.v2.model.auto.TGasPlanTask;
 import com.fc.v2.model.auto.TGasTaskDispatch;
 import com.fc.v2.model.auto.TSysDepartment;
@@ -37,6 +42,10 @@ public class TGasPlanTaskServiceImpl implements ITGasPlanTaskService {
     private static final int STATUS_WAIT = 0;
     /** 条目情形：已派 */
     private static final int STATUS_DONE = 1;
+    /** 条目情形：已取消（管段停用） */
+    private static final int STATUS_CANCELLED = 3;
+    /** 底档情形：已停用（退役） */
+    private static final int PIPE_STOPPED = 1;
     /** 超期达到该自然日数即视为紧急，优先派发 */
     private static final int URGENT_OVERDUE_DAYS = 3;
     /** 派发方式：自动扫描 */
@@ -52,6 +61,9 @@ public class TGasPlanTaskServiceImpl implements ITGasPlanTaskService {
 
     @javax.annotation.Resource
     private TGasPlanTaskMapper gasPlanTaskMapper;
+
+    @javax.annotation.Resource
+    private TGasPipeMapper gasPipeMapper;
 
     @Autowired
     private ITGasTaskDispatchService gasTaskDispatchService;
@@ -103,14 +115,19 @@ public class TGasPlanTaskServiceImpl implements ITGasPlanTaskService {
      * 该时刻可处理的条目：未删除 + 待派 + 派单窗口已开
      * （窗口开启时刻 = due_at 前推 amount 个自然日，amount 为空按 0 计）。
      * 状态与删除标记走 SQL，窗口边界沿用墙钟字符串比较。
+     * 已停用管段的条目不再生成派单（未关联管段的条目不受影响）。
      */
     @Override
     public List<TGasPlanTask> listDue(Date at) {
         QueryWrapper<TGasPlanTask> qw = new QueryWrapper<TGasPlanTask>();
         qw.eq("del_flag", 0).eq("status", STATUS_WAIT).isNotNull("due_at");
         List<TGasPlanTask> waiting = this.gasPlanTaskMapper.selectList(qw);
+        Set<Long> stoppedSites = stoppedSiteIds();
         List<TGasPlanTask> due = new ArrayList<TGasPlanTask>();
         for (TGasPlanTask r : waiting) {
+            if (r.getSiteId() != null && stoppedSites.contains(r.getSiteId())) {
+                continue;
+            }
             int ahead = r.getAmount() == null ? 0 : r.getAmount().intValue();
             Calendar open = Calendar.getInstance();
             open.setTime(r.getDueAt());
@@ -120,6 +137,33 @@ public class TGasPlanTaskServiceImpl implements ITGasPlanTaskService {
             }
         }
         return due;
+    }
+
+    /**
+     * 管段停用后取消其在派任务：该管段全部"待派"条目置为已取消，
+     * 后续周期扫描与手动派单均不再生成该管段的巡检派单。
+     */
+    @Override
+    public int cancelPendingBySite(Long siteId, String reason) {
+        if (siteId == null) {
+            return 0;
+        }
+        TGasPlanTask upd = new TGasPlanTask();
+        upd.setStatus(STATUS_CANCELLED);
+        upd.setRemark(reason);
+        return this.gasPlanTaskMapper.update(upd, new UpdateWrapper<TGasPlanTask>()
+                .eq("site_id", siteId).eq("status", STATUS_WAIT).eq("del_flag", 0));
+    }
+
+    /** 已停用管段底档主键集合（无停用管段时为空集） */
+    private Set<Long> stoppedSiteIds() {
+        QueryWrapper<TGasPipe> qw = new QueryWrapper<TGasPipe>();
+        qw.eq("del_flag", 0).eq("status", PIPE_STOPPED);
+        Set<Long> ids = new HashSet<Long>();
+        for (TGasPipe pipe : this.gasPipeMapper.selectList(qw)) {
+            ids.add(pipe.getId());
+        }
+        return ids;
     }
 
     /**
@@ -159,6 +203,7 @@ public class TGasPlanTaskServiceImpl implements ITGasPlanTaskService {
     /**
      * 手动批量派单：指定接收对象时全部派给该对象；未指定时按班组负载自动均衡。
      * 仅处理仍为"待派"的条目，已派/已撤销的跳过，保证重复提交不重复派单。
+     * 已停用管段的条目一律跳过，不再生成巡检派单。
      */
     @Override
     public int dispatchBatch(List<Long> ids, Integer targetType, Long targetId, String dispatchBy) {
@@ -167,6 +212,7 @@ public class TGasPlanTaskServiceImpl implements ITGasPlanTaskService {
         }
         Date at = new Date();
         int ok = 0;
+        Set<Long> stoppedSites = stoppedSiteIds();
         if (targetId != null) {
             String[] target = resolveTarget(targetType, targetId);
             if (target == null) {
@@ -175,6 +221,10 @@ public class TGasPlanTaskServiceImpl implements ITGasPlanTaskService {
             for (Long id : ids) {
                 TGasPlanTask task = this.gasPlanTaskMapper.selectById(id);
                 if (task == null || task.getStatus() == null || task.getStatus() != STATUS_WAIT) {
+                    continue;
+                }
+                if (task.getSiteId() != null && stoppedSites.contains(task.getSiteId())) {
+                    log.info("[planTaskDispatch] 任务 {} 所属管段已停用，跳过派单", id);
                     continue;
                 }
                 try {
@@ -191,7 +241,8 @@ public class TGasPlanTaskServiceImpl implements ITGasPlanTaskService {
         List<TGasPlanTask> tasks = new ArrayList<TGasPlanTask>();
         for (Long id : ids) {
             TGasPlanTask task = this.gasPlanTaskMapper.selectById(id);
-            if (task != null && task.getStatus() != null && task.getStatus() == STATUS_WAIT) {
+            if (task != null && task.getStatus() != null && task.getStatus() == STATUS_WAIT
+                    && (task.getSiteId() == null || !stoppedSites.contains(task.getSiteId()))) {
                 tasks.add(task);
             }
         }

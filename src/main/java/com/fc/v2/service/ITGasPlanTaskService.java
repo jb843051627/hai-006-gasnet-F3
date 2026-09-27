@@ -39,4 +39,14 @@ public interface ITGasPlanTaskService {
 
     /** 截至 at 的超期自然日数（未超期为 0） */
     int overdueDays(TGasPlanTask task, Date at);
+
+    /**
+     * 管段停用后取消其在派任务：该管段全部"待派"条目置为 3已取消（管段停用），
+     * 后续周期扫描与手动派单均不再生成该管段的巡检派单。
+     *
+     * @param siteId 管段底档主键 t_gas_pipe.id
+     * @param reason 取消原因（写入备注）
+     * @return 取消条数
+     */
+    int cancelPendingBySite(Long siteId, String reason);
 }

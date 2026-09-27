@@ -36,9 +36,24 @@ public class TGasStopBill implements Serializable {
     @ApiModelProperty(value = "停用申请签核单号")
     private String billNo;
 
-    /** 当前所在道 0..2（运维提/安全核/工程评） */
+    /** 所属管段底档 t_gas_pipe.id */
+    @TableField("site_id")
+    @ApiModelProperty(value = "所属管段底档")
+    private Long siteId;
+
+    /** 所属管段底档代号(快照) */
+    @TableField("site_no")
+    @ApiModelProperty(value = "所属管段底档代号")
+    private String siteNo;
+
+    /** 停用申请理由(重大隐患/达到设计寿命等) */
+    @TableField("apply_reason")
+    @ApiModelProperty(value = "停用申请理由")
+    private String applyReason;
+
+    /** 当前所在道 0..3（0运维提/1安全核/2工程评/3管理层批） */
     @TableField("node_no")
-    @ApiModelProperty(value = "当前所在道 0..2（运维提/安全核/工程评）")
+    @ApiModelProperty(value = "当前所在道 0..3（0运维提/1安全核/2工程评/3管理层批）")
     private Integer nodeNo;
 
     /** 同口并印办法 0任一人 1两名点齐 */
@@ -56,9 +71,9 @@ public class TGasStopBill implements Serializable {
     @ApiModelProperty(value = "本口已落印数")
     private Integer signCount;
 
-    /** 报批情形 0在核 1已核讫 2已打回 */
+    /** 报批情形 0在核 1已核讫 2已打回 3已否决 */
     @TableField("status")
-    @ApiModelProperty(value = "报批情形 0在核 1已核讫 2已打回")
+    @ApiModelProperty(value = "报批情形 0在核 1已核讫 2已打回 3已否决")
     private Integer status;
 
     /** 删除标记 0正常 1删除 */
@@ -93,6 +108,16 @@ public class TGasStopBill implements Serializable {
     @ApiModelProperty(value = "备注")
     private String remark;
 
+    /** 所属管段档案名称（展示用，非表字段） */
+    @TableField(exist = false)
+    @ApiModelProperty(value = "所属管段档案名称")
+    private String siteName;
+
+    /** 当前环节名（展示用，非表字段） */
+    @TableField(exist = false)
+    @ApiModelProperty(value = "当前环节名")
+    private String nodeName;
+
     public Long getId() {
         return id;
     }
@@ -107,6 +132,30 @@ public class TGasStopBill implements Serializable {
 
     public void setBillNo(String billNo) {
         this.billNo = billNo;
+    }
+
+    public Long getSiteId() {
+        return siteId;
+    }
+
+    public void setSiteId(Long siteId) {
+        this.siteId = siteId;
+    }
+
+    public String getSiteNo() {
+        return siteNo;
+    }
+
+    public void setSiteNo(String siteNo) {
+        this.siteNo = siteNo;
+    }
+
+    public String getApplyReason() {
+        return applyReason;
+    }
+
+    public void setApplyReason(String applyReason) {
+        this.applyReason = applyReason;
     }
 
     public Integer getNodeNo() {
@@ -195,5 +244,21 @@ public class TGasStopBill implements Serializable {
 
     public void setRemark(String remark) {
         this.remark = remark;
+    }
+
+    public String getSiteName() {
+        return siteName;
+    }
+
+    public void setSiteName(String siteName) {
+        this.siteName = siteName;
+    }
+
+    public String getNodeName() {
+        return nodeName;
+    }
+
+    public void setNodeName(String nodeName) {
+        this.nodeName = nodeName;
     }
 }

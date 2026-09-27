@@ -28,7 +28,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.fc.v2.mapper.auto.TGasPipeMapper;
 import com.fc.v2.mapper.auto.TGasPlanTaskMapper;
+import com.fc.v2.model.auto.TGasPipe;
 import com.fc.v2.model.auto.TGasPlanTask;
 import com.fc.v2.model.auto.TGasTaskDispatch;
 import com.fc.v2.model.auto.TSysDepartment;
@@ -46,6 +48,8 @@ class TGasPlanTaskServiceImplTest {
 
     @Mock
     private TGasPlanTaskMapper gasPlanTaskMapper;
+    @Mock
+    private TGasPipeMapper gasPipeMapper;
     @Mock
     private ITGasTaskDispatchService gasTaskDispatchService;
     @Mock
@@ -78,6 +82,13 @@ class TGasPlanTaskServiceImplTest {
         d.setDeptName("巡检" + id + "班");
         d.setStatus(1);
         return d;
+    }
+
+    private static TGasPipe stoppedPipe(long id) {
+        TGasPipe p = new TGasPipe();
+        p.setId(id);
+        p.setStatus(1); // 已停用（退役）
+        return p;
     }
 
     // ---------- listDue ----------
@@ -263,6 +274,53 @@ class TGasPlanTaskServiceImplTest {
         // 两条都派给负载更低的102班（就地累加后 1→2 仍低于 3）
         assertEquals("102", captor.getAllValues().get(0).getTargetId());
         assertEquals("102", captor.getAllValues().get(1).getTargetId());
+    }
+
+    // ---------- 停用管段阻断 ----------
+
+    @Test
+    void listDue_skipsStoppedSiteTasks() throws Exception {
+        Date now = at("2026-09-26 12:00:00");
+        TGasPlanTask stopped = task(1, "2026-09-25 12:00:00", 3);
+        stopped.setSiteId(1L);                          // 已停用管段
+        TGasPlanTask active = task(2, "2026-09-25 12:00:00", 3);
+        active.setSiteId(0L);                           // 在用管段
+        TGasPlanTask unlinked = task(3, "2026-09-25 12:00:00", 3); // 未关联管段
+        when(gasPlanTaskMapper.selectList(any())).thenReturn(Arrays.asList(stopped, active, unlinked));
+        when(gasPipeMapper.selectList(any())).thenReturn(Collections.singletonList(stoppedPipe(1L)));
+
+        List<TGasPlanTask> due = service.listDue(now);
+        List<Long> ids = due.stream().map(TGasPlanTask::getId).collect(Collectors.toList());
+        assertEquals(Arrays.asList(2L, 3L), ids);
+    }
+
+    @Test
+    void dispatchBatch_skipsStoppedSiteTasks() throws Exception {
+        TGasPlanTask stopped = task(1, "2026-09-25 12:00:00", 3);
+        stopped.setSiteId(1L);
+        when(gasPlanTaskMapper.selectById(1L)).thenReturn(stopped);
+        when(gasPlanTaskMapper.selectById(2L)).thenReturn(task(2, "2026-09-25 12:00:00", 3));
+        when(gasPipeMapper.selectList(any())).thenReturn(Collections.singletonList(stoppedPipe(1L)));
+        when(sysDepartmentService.selectTSysDepartmentById(101L)).thenReturn(team(101));
+        when(gasTaskDispatchService.insertTGasTaskDispatch(any())).thenReturn(1);
+        when(gasPlanTaskMapper.updateById(any())).thenReturn(1);
+
+        int ok = service.dispatchBatch(Arrays.asList(1L, 2L), 0, 101L, "admin");
+        assertEquals(1, ok); // 停用管段任务被跳过，仅 PT-2 派出
+        ArgumentCaptor<TGasTaskDispatch> captor = ArgumentCaptor.forClass(TGasTaskDispatch.class);
+        verify(gasTaskDispatchService, times(1)).insertTGasTaskDispatch(captor.capture());
+        assertEquals("PT-2", captor.getValue().getItemNo());
+    }
+
+    @Test
+    void cancelPendingBySite_marksCancelled() {
+        when(gasPlanTaskMapper.update(any(), any())).thenReturn(2);
+        assertEquals(2, service.cancelPendingBySite(0L, "管段停用"));
+        ArgumentCaptor<TGasPlanTask> captor = ArgumentCaptor.forClass(TGasPlanTask.class);
+        verify(gasPlanTaskMapper).update(captor.capture(), any());
+        assertEquals(3, captor.getValue().getStatus()); // 3已取消(管段停用)
+        // 空管段直接返回，不触库
+        assertEquals(0, service.cancelPendingBySite(null, "管段停用"));
     }
 
     // ---------- overdueDays ----------

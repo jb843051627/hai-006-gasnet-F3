@@ -11,15 +11,16 @@ VALUES (101, 1, '巡检一班', '班组长一', '13000000001', 'team1@gas.net', 
        (103, 1, '巡检三班', '班组长三', '13000000003', 'team3@gas.net', 1, 13, 'seed', NOW());
 
 -- 到期任务派单演示数据：覆盖 超期5天/3天/1天、今日到期、窗口内未到期、窗口外、已派 七种情形
--- amount=提前派单自然日数；status 0待派 1已派 2派不出去
-INSERT IGNORE INTO t_gas_plan_task (id, item_no, due_at, amount, content, status, del_flag, create_by, create_time)
-VALUES (1, 'PT-YEAR-0001', DATE_SUB(NOW(), INTERVAL 5 DAY), 3, '年度检测：青坪市城区中压主干管段泄漏浓度普测', 0, 0, 'seed', NOW()),
-       (2, 'PT-MON-0002', DATE_SUB(NOW(), INTERVAL 3 DAY), 3, '月度巡检：城东区东湖街道调压柜运行状态检查', 0, 0, 'seed', NOW()),
-       (3, 'PT-YEAR-0003', DATE_SUB(NOW(), INTERVAL 1 DAY), 3, '年度检测：城西片区中压支线管段防腐层检测', 0, 0, 'seed', NOW()),
-       (4, 'PT-MON-0004', DATE_FORMAT(NOW(), '%Y-%m-%d 23:59:59'), 3, '月度巡检：城南片区庭院管网入户安全检查', 0, 0, 'seed', NOW()),
-       (5, 'PT-SEAS-0005', DATE_ADD(NOW(), INTERVAL 2 DAY), 3, '季度检测：城北调压站压力容器定期校验', 0, 0, 'seed', NOW()),
-       (6, 'PT-YEAR-0006', DATE_ADD(NOW(), INTERVAL 10 DAY), 3, '年度检测：开发区工业用户专线管段巡检', 0, 0, 'seed', NOW()),
-       (7, 'PT-MON-0007', DATE_SUB(NOW(), INTERVAL 2 DAY), 3, '月度巡检：老城区铸铁管段重点排查（已派）', 1, 0, 'seed', NOW());
+-- amount=提前派单自然日数；status 0待派 1已派 2派不出去 3已取消(管段停用)
+-- site_id/site_no 关联管段底档：已停用管段(status=1)的任务不再被扫描派单；未关联(NULL)的按原样参与
+INSERT IGNORE INTO t_gas_plan_task (id, item_no, site_id, site_no, due_at, amount, content, status, del_flag, create_by, create_time)
+VALUES (1, 'PT-YEAR-0001', 0, 'GP00', DATE_SUB(NOW(), INTERVAL 5 DAY), 3, '年度检测：青坪市城区中压主干管段泄漏浓度普测', 0, 0, 'seed', NOW()),
+       (2, 'PT-MON-0002', NULL, NULL, DATE_SUB(NOW(), INTERVAL 3 DAY), 3, '月度巡检：城东区东湖街道调压柜运行状态检查', 0, 0, 'seed', NOW()),
+       (3, 'PT-YEAR-0003', NULL, NULL, DATE_SUB(NOW(), INTERVAL 1 DAY), 3, '年度检测：城西片区中压支线管段防腐层检测', 0, 0, 'seed', NOW()),
+       (4, 'PT-MON-0004', NULL, NULL, DATE_FORMAT(NOW(), '%Y-%m-%d 23:59:59'), 3, '月度巡检：城南片区庭院管网入户安全检查', 0, 0, 'seed', NOW()),
+       (5, 'PT-SEAS-0005', NULL, NULL, DATE_ADD(NOW(), INTERVAL 2 DAY), 3, '季度检测：城北调压站压力容器定期校验', 0, 0, 'seed', NOW()),
+       (6, 'PT-YEAR-0006', NULL, NULL, DATE_ADD(NOW(), INTERVAL 10 DAY), 3, '年度检测：开发区工业用户专线管段巡检', 0, 0, 'seed', NOW()),
+       (7, 'PT-MON-0007', NULL, NULL, DATE_SUB(NOW(), INTERVAL 2 DAY), 3, '月度巡检：老城区铸铁管段重点排查（已派）', 1, 0, 'seed', NOW());
 
 -- 周期扫描定时任务：每日 01:00 扫描到期任务并自动派单（status 0正常 1暂停）
 INSERT IGNORE INTO t_sys_quartz_job (id, job_name, job_group, invoke_target, cron_expression, misfire_policy, concurrent, status, create_by, create_time, remark)
@@ -42,3 +43,12 @@ VALUES (8101, 'LC20251215100000-8101', '2025-12-15 10:00:00', 'GP00-V01', '青�
 -- 规则交棒排期翻转定时任务：每分钟扫描 eff_end 已到但状态仍为现行的版本并翻转（status 0正常 1暂停）
 INSERT IGNORE INTO t_sys_quartz_job (id, job_name, job_group, invoke_target, cron_expression, misfire_policy, concurrent, status, create_by, create_time, remark)
 VALUES (9002, '浓度规则交棒翻转', 'GASNET', 'gasConcRuleRolloverTask.rollover()', '0 * * * * ?', '2', '1', 0, 'seed', NOW(), '每分钟扫描到点交棒的规则版本，翻转台账状态位（评定在否在用以时间窗为准）');
+
+-- 管段停用申请演示：GP00 主干管段已达设计寿命且有重大隐患，运维已提交，现停在 1安全核 待审
+-- node_no 0运维提/1安全核/2工程评/3管理层批；status 0在核 1已核讫 2已打回 3已否决
+INSERT IGNORE INTO t_gas_stop_bill (id, bill_no, site_id, site_no, apply_reason, node_no, sign_mode, need_count, sign_count, status, del_flag, create_by, create_time)
+VALUES (7001, 'SB20260926000001', 0, 'GP00', '管段服役已满设计寿命，近期泄漏普测浓度持续偏高，存在重大安全隐患，申请停用。', 1, 0, 1, 0, 0, 0, 'seed', NOW());
+
+-- 停用申请审批履历演示：7001 的运维提交留痕（action 0提交 1通过 2退回补充 3否决）
+INSERT IGNORE INTO t_gas_stop_bill_record (id, bill_id, bill_no, node_no, node_name, action, approver, opinion, create_time)
+VALUES (7001, 7001, 'SB20260926000001', 0, '运维申请', 0, 'seed', '管段服役已满设计寿命，近期泄漏普测浓度持续偏高，存在重大安全隐患，申请停用。', NOW());
