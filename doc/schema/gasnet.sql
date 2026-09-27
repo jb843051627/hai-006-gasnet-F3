@@ -115,6 +115,7 @@ CREATE TABLE IF NOT EXISTS t_gas_plan_task (
   due_at datetime DEFAULT NULL COMMENT '该动手那一天的最后一刻',
   amount decimal(12,2) DEFAULT NULL COMMENT '单条提前派单的自然日数',
   content varchar(255) DEFAULT NULL COMMENT '派单事由与受派班组记要',
+  pipe_id bigint DEFAULT NULL COMMENT '关联管段 t_gas_pipe.id(管段停用后不再派单)',
   status int DEFAULT NULL COMMENT '条目情形 0待派 1已派 2派不出去',
   del_flag int DEFAULT '0' COMMENT '删除标记 0正常 1删除',
   create_by varchar(64) DEFAULT NULL COMMENT '创建者',
@@ -144,19 +145,47 @@ CREATE TABLE IF NOT EXISTS t_gas_repair_order (
 CREATE TABLE IF NOT EXISTS t_gas_stop_bill (
   id bigint NOT NULL COMMENT '主键',
   bill_no varchar(64) DEFAULT NULL COMMENT '停用申请签核单号',
-  node_no int DEFAULT NULL COMMENT '当前所在道 0..2（运维提/安全核/工程评）',
+  pipe_id bigint DEFAULT NULL COMMENT '申请停用管段 t_gas_pipe.id',
+  pipe_no varchar(64) DEFAULT NULL COMMENT '管段档案代号(申请时快照)',
+  pipe_name varchar(128) DEFAULT NULL COMMENT '管段档案名称(申请时快照)',
+  apply_reason varchar(1000) DEFAULT NULL COMMENT '停用申请理由(重大隐患/到达设计寿命等)',
+  node_no int DEFAULT NULL COMMENT '当前所在道 0运维申请(退回补充) 1安全审核 2工程评估 3管理批准',
   sign_mode int DEFAULT NULL COMMENT '同口并印办法 0任一人 1两名点齐',
   need_count int DEFAULT NULL COMMENT '本口应落印数',
   sign_count int DEFAULT NULL COMMENT '本口已落印数',
-  status int DEFAULT NULL COMMENT '报批情形 0在核 1已核讫 2已打回',
+  status int DEFAULT NULL COMMENT '报批情形 0在核 1已核讫(已停用) 2已否决',
+  finish_time datetime DEFAULT NULL COMMENT '终审批准并执行停用时间',
   del_flag int DEFAULT '0' COMMENT '删除标记 0正常 1删除',
   create_by varchar(64) DEFAULT NULL COMMENT '创建者',
   create_time datetime DEFAULT NULL COMMENT '创建时间',
   update_by varchar(64) DEFAULT NULL COMMENT '更新者',
   update_time datetime DEFAULT NULL COMMENT '更新时间',
   remark varchar(500) DEFAULT NULL COMMENT '备注',
-  PRIMARY KEY (id)
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_gas_stop_bill_no (bill_no),
+  KEY idx_gas_stop_pipe (pipe_id),
+  KEY idx_gas_stop_status (status, node_no)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='燃气管段停用申请签核单';
+
+CREATE TABLE IF NOT EXISTS t_gas_stop_approve (
+  id bigint NOT NULL COMMENT '主键',
+  bill_id bigint NOT NULL COMMENT '所属停用单 t_gas_stop_bill.id',
+  bill_no varchar(64) DEFAULT NULL COMMENT '停用申请签核单号(冗余)',
+  node_no int DEFAULT NULL COMMENT '审批环节 0运维申请 1安全审核 2工程评估 3管理批准',
+  node_name varchar(32) DEFAULT NULL COMMENT '审批环节名称(快照)',
+  action int DEFAULT NULL COMMENT '动作 0提交申请 1同意 2退回补充 3否决 4补充后重新提交',
+  approve_by varchar(64) DEFAULT NULL COMMENT '操作/审批人',
+  approve_comment varchar(1000) DEFAULT NULL COMMENT '申请理由或审批意见',
+  approve_time datetime DEFAULT NULL COMMENT '操作/审批时间',
+  del_flag int DEFAULT '0' COMMENT '删除标记 0正常 1删除',
+  create_by varchar(64) DEFAULT NULL COMMENT '创建者',
+  create_time datetime DEFAULT NULL COMMENT '创建时间',
+  update_by varchar(64) DEFAULT NULL COMMENT '更新者',
+  update_time datetime DEFAULT NULL COMMENT '更新时间',
+  remark varchar(500) DEFAULT NULL COMMENT '备注',
+  PRIMARY KEY (id),
+  KEY idx_gas_stop_approve_bill (bill_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='燃气管段停用签批履历';
 
 CREATE TABLE IF NOT EXISTS t_gas_task_dispatch (
   id bigint NOT NULL COMMENT '主键',

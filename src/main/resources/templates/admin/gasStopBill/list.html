@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.pollix.at/thymeleaf/shiro">
+<head>
+    <th:block th:include="include :: header('燃气管段停用签核台账')"/>
+</head>
+<body class="pear-container">
+<div class="layui-card">
+    <div class="layui-card-body">
+        <form class="layui-form" action="">
+            <div class="layui-form-item">
+                <label class="layui-form-label">签核单号</label>
+                <div class="layui-input-inline">
+                    <input type="text" name="billNo" placeholder="" class="layui-input">
+                </div>
+
+                <label class="layui-form-label">管段名称</label>
+                <div class="layui-input-inline">
+                    <input type="text" name="pipeName" placeholder="" class="layui-input">
+                </div>
+
+                <label class="layui-form-label">状态</label>
+                <div class="layui-input-inline">
+                    <select name="status">
+                        <option value="">全部</option>
+                        <option value="0">在核</option>
+                        <option value="1">已核讫(已停用)</option>
+                        <option value="2">已否决</option>
+                    </select>
+                </div>
+                <button class="pear-btn pear-btn-md pear-btn-primary" lay-submit lay-filter="gasStopBill-query">
+                    <i class="layui-icon layui-icon-search"></i>
+                    查询
+                </button>
+                <button type="reset" class="pear-btn pear-btn-md">
+                    <i class="layui-icon layui-icon-refresh"></i>
+                    重置
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+<div class="layui-card">
+    <div class="layui-card-body">
+        <table id="gasStopBill-table" lay-filter="gasStopBill-table"></table>
+    </div>
+</div>
+</body>
+
+<script type="text/html" id="gasStopBill-toolbar">
+    <button shiro:hasPermission="gasStopBill:apply" class="pear-btn pear-btn-primary pear-btn-md" lay-event="add">
+        <i class="layui-icon layui-icon-add-1"></i>
+        发起停用申请
+    </button>
+</script>
+
+<script type="text/html" id="gasStopBill-bar">
+    <button shiro:hasPermission="gasStopBill:view" class="pear-btn pear-btn-primary pear-btn-sm" lay-event="detail" title="详情/履历">
+        <i class="layui-icon layui-icon-form"></i>
+    </button>
+</script>
+
+<script type="text/html" id="gasStopBill-status">
+    {{# if(d.status == 0){ }}
+    <span class="layui-badge layui-bg-orange">在核</span>
+    {{# }else if(d.status == 1){ }}
+    <span class="layui-badge layui-bg-green">已核讫(已停用)</span>
+    {{# }else if(d.status == 2){ }}
+    <span class="layui-badge layui-bg-gray">已否决</span>
+    {{# } }}
+</script>
+
+<script type="text/html" id="gasStopBill-node">
+    {{# if(d.status == 1){ }}
+    <span style="color:#5FB878">流程结束，已执行停用</span>
+    {{# }else if(d.status == 2){ }}
+    <span style="color:#999">流程终止（否决）</span>
+    {{# }else if(d.nodeNo == 0){ }}
+    <span class="layui-badge layui-bg-red">退回补充（待运维重提）</span>
+    {{# }else if(d.nodeNo == 1){ }}
+    <span class="layui-badge layui-bg-orange">① 安全管理部门审核</span>
+    {{# }else if(d.nodeNo == 2){ }}
+    <span class="layui-badge layui-bg-orange">② 工程技术部门评估</span>
+    {{# }else if(d.nodeNo == 3){ }}
+    <span class="layui-badge layui-bg-orange">③ 公司管理层批准</span>
+    {{# } }}
+</script>
+
+<th:block th:include="include :: footer"/>
+<script>
+    layui.use(['table', 'form', 'jquery'], function () {
+        let table = layui.table;
+        let form = layui.form;
+        let $ = layui.jquery;
+
+        let MODULE_PATH = rootPath + "/gasStopBill/";
+        let cols = [
+            [
+                {title: 'ID', field: 'id', align: 'center', hide: true},
+                {title: '签核单号', field: 'billNo', align: 'center', width: 180},
+                {title: '管段代号', field: 'pipeNo', align: 'center', width: 100},
+                {title: '申请停用管段', field: 'pipeName', align: 'left', minWidth: 220},
+                {title: '停用理由', field: 'applyReason', align: 'left', minWidth: 220},
+                {title: '当前进度', field: 'nodeNo', align: 'center', width: 200, toolbar: '#gasStopBill-node'},
+                {title: '状态', field: 'status', align: 'center', width: 140, toolbar: '#gasStopBill-status'},
+                {title: '申请人', field: 'createBy', align: 'center', width: 100},
+                {title: '发起时间', field: 'createTime', align: 'center', width: 170},
+                {title: '停用执行时间', field: 'finishTime', align: 'center', width: 170},
+                {title: '操作', toolbar: '#gasStopBill-bar', align: 'center', width: 90}
+            ]
+        ];
+
+        table.render({
+            elem: '#gasStopBill-table',
+            url: MODULE_PATH + 'list',
+            page: true,
+            method: 'get',
+            cols: cols,
+            skin: 'line',
+            toolbar: '#gasStopBill-toolbar',
+            defaultToolbar: [{
+                layEvent: 'refresh',
+                icon: 'layui-icon-refresh',
+            }, 'filter', 'print', 'exports'],
+            where: {
+                orderByColumn: "create_time",
+                isAsc: "desc"
+            }
+        });
+
+        //行工具事件
+        table.on('tool(gasStopBill-table)', function (obj) {
+            if (obj.event === 'detail') {
+                window.openDetail(obj.data['id']);
+            }
+        });
+
+        //工具栏事件
+        table.on('toolbar(gasStopBill-table)', function (obj) {
+            if (obj.event === 'add') {
+                window.openAdd();
+            } else if (obj.event === 'refresh') {
+                table.reload('gasStopBill-table');
+            }
+        });
+
+        //查询
+        form.on('submit(gasStopBill-query)', function (data) {
+            table.reload('gasStopBill-table', {where: data.field, page: {curr: 1}});
+            return false;
+        });
+
+        //发起停用申请
+        window.openAdd = function () {
+            layer.open({
+                type: 2,
+                title: '发起燃气管段停用申请',
+                shade: 0.1,
+                area: ['640px', '520px'],
+                content: MODULE_PATH + 'addView'
+            });
+        }
+
+        //详情与履历
+        window.openDetail = function (id) {
+            layer.open({
+                type: 2,
+                title: '停用申请详情与审批履历',
+                shade: 0.1,
+                area: ['860px', '640px'],
+                content: MODULE_PATH + 'detailView?id=' + id
+            });
+        }
+    });
+</script>
+</html>

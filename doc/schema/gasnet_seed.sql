@@ -12,14 +12,15 @@ VALUES (101, 1, '巡检一班', '班组长一', '13000000001', 'team1@gas.net', 
 
 -- 到期任务派单演示数据：覆盖 超期5天/3天/1天、今日到期、窗口内未到期、窗口外、已派 七种情形
 -- amount=提前派单自然日数；status 0待派 1已派 2派不出去
-INSERT IGNORE INTO t_gas_plan_task (id, item_no, due_at, amount, content, status, del_flag, create_by, create_time)
-VALUES (1, 'PT-YEAR-0001', DATE_SUB(NOW(), INTERVAL 5 DAY), 3, '年度检测：青坪市城区中压主干管段泄漏浓度普测', 0, 0, 'seed', NOW()),
-       (2, 'PT-MON-0002', DATE_SUB(NOW(), INTERVAL 3 DAY), 3, '月度巡检：城东区东湖街道调压柜运行状态检查', 0, 0, 'seed', NOW()),
-       (3, 'PT-YEAR-0003', DATE_SUB(NOW(), INTERVAL 1 DAY), 3, '年度检测：城西片区中压支线管段防腐层检测', 0, 0, 'seed', NOW()),
-       (4, 'PT-MON-0004', DATE_FORMAT(NOW(), '%Y-%m-%d 23:59:59'), 3, '月度巡检：城南片区庭院管网入户安全检查', 0, 0, 'seed', NOW()),
-       (5, 'PT-SEAS-0005', DATE_ADD(NOW(), INTERVAL 2 DAY), 3, '季度检测：城北调压站压力容器定期校验', 0, 0, 'seed', NOW()),
-       (6, 'PT-YEAR-0006', DATE_ADD(NOW(), INTERVAL 10 DAY), 3, '年度检测：开发区工业用户专线管段巡检', 0, 0, 'seed', NOW()),
-       (7, 'PT-MON-0007', DATE_SUB(NOW(), INTERVAL 2 DAY), 3, '月度巡检：老城区铸铁管段重点排查（已派）', 1, 0, 'seed', NOW());
+INSERT IGNORE INTO t_gas_plan_task (id, item_no, due_at, amount, content, pipe_id, status, del_flag, create_by, create_time)
+VALUES (1, 'PT-YEAR-0001', DATE_SUB(NOW(), INTERVAL 5 DAY), 3, '年度检测：青坪市城区中压主干管段泄漏浓度普测', 0, 0, 0, 'seed', NOW()),
+       (2, 'PT-MON-0002', DATE_SUB(NOW(), INTERVAL 3 DAY), 3, '月度巡检：城东区东湖街道调压柜运行状态检查', 0, 0, 0, 'seed', NOW()),
+       (3, 'PT-YEAR-0003', DATE_SUB(NOW(), INTERVAL 1 DAY), 3, '年度检测：城西片区中压支线管段防腐层检测', 0, 0, 0, 'seed', NOW()),
+       (4, 'PT-MON-0004', DATE_FORMAT(NOW(), '%Y-%m-%d 23:59:59'), 3, '月度巡检：城南片区庭院管网入户安全检查', NULL, 0, 0, 'seed', NOW()),
+       (5, 'PT-SEAS-0005', DATE_ADD(NOW(), INTERVAL 2 DAY), 3, '季度检测：城北调压站压力容器定期校验', NULL, 0, 0, 'seed', NOW()),
+       (6, 'PT-YEAR-0006', DATE_ADD(NOW(), INTERVAL 10 DAY), 3, '年度检测：开发区工业用户专线管段巡检', NULL, 0, 0, 'seed', NOW()),
+       (7, 'PT-MON-0007', DATE_SUB(NOW(), INTERVAL 2 DAY), 3, '月度巡检：老城区铸铁管段重点排查（已派）', NULL, 1, 0, 'seed', NOW()),
+       (8, 'PT-MON-0008', DATE_SUB(NOW(), INTERVAL 4 DAY), 3, '月度巡检：城东调压站运行状态检查（管段已停用，禁止派单）', 1, 0, 0, 'seed', NOW());
 
 -- 周期扫描定时任务：每日 01:00 扫描到期任务并自动派单（status 0正常 1暂停）
 INSERT IGNORE INTO t_sys_quartz_job (id, job_name, job_group, invoke_target, cron_expression, misfire_policy, concurrent, status, create_by, create_time, remark)
@@ -42,3 +43,23 @@ VALUES (8101, 'LC20251215100000-8101', '2025-12-15 10:00:00', 'GP00-V01', '青�
 -- 规则交棒排期翻转定时任务：每分钟扫描 eff_end 已到但状态仍为现行的版本并翻转（status 0正常 1暂停）
 INSERT IGNORE INTO t_sys_quartz_job (id, job_name, job_group, invoke_target, cron_expression, misfire_policy, concurrent, status, create_by, create_time, remark)
 VALUES (9002, '浓度规则交棒翻转', 'GASNET', 'gasConcRuleRolloverTask.rollover()', '0 * * * * ?', '2', '1', 0, 'seed', NOW(), '每分钟扫描到点交棒的规则版本，翻转台账状态位（评定在否在用以时间窗为准）');
+
+-- 燃气管段停用申请演示：
+-- 9101 在审（停在用主干管段 GP00，已过运维申请，正等安全管理部门现场核实）
+-- 9102 已核讫（GP01 城东调压站，四级全部通过，管段已置停用并撤销其待派巡检任务）
+INSERT IGNORE INTO t_gas_stop_bill (id, bill_no, pipe_id, pipe_no, pipe_name, apply_reason, node_no, sign_mode, need_count, sign_count, status, finish_time, del_flag, create_by, create_time, remark)
+VALUES (9101, 'ST2026092001', 0, 'GP00', '青坪市城区中压主干管段（在用）', '城东段防腐层多处破损，存在重大泄漏安全隐患，申请停用。', 1, 0, 1, 0, 0, NULL, 0, 'yunwei01', DATE_SUB(NOW(), INTERVAL 6 DAY), NULL),
+       (9102, 'ST2026090501', 1, 'GP01', '青坪市城东调压站（已退役）', '调压站设备已达设计寿命30年，备件停供，申请退役停用。', 4, 0, 1, 1, 1, DATE_SUB(NOW(), INTERVAL 20 DAY), 0, 'yunwei01', DATE_SUB(NOW(), INTERVAL 22 DAY), NULL);
+
+-- 9101 履历：运维提交 → 安全退回补充 → 运维补充后重新提交（当前仍在安全审核口）
+INSERT IGNORE INTO t_gas_stop_approve (id, bill_id, bill_no, node_no, node_name, action, approve_by, approve_comment, approve_time, del_flag, create_by, create_time)
+VALUES (910101, 9101, 'ST2026092001', 0, '运维部门申请', 0, 'yunwei01', '城东段防腐层多处破损，存在重大泄漏安全隐患，申请停用。', DATE_SUB(NOW(), INTERVAL 6 DAY), 0, 'yunwei01', DATE_SUB(NOW(), INTERVAL 6 DAY)),
+       (910102, 9101, 'ST2026092001', 1, '安全管理部门审核', 2, 'safety01', '现场核实照片与隐患定级报告缺失，请补充材料。', DATE_SUB(NOW(), INTERVAL 5 DAY), 0, 'safety01', DATE_SUB(NOW(), INTERVAL 5 DAY)),
+       (910103, 9101, 'ST2026092001', 0, '运维部门申请', 4, 'yunwei01', '已补充现场照片12张及第三方检测定级报告（见附件）。', DATE_SUB(NOW(), INTERVAL 4 DAY), 0, 'yunwei01', DATE_SUB(NOW(), INTERVAL 4 DAY));
+
+-- 9102 履历：四级签批全部通过（同意链），管理批准即执行停用
+INSERT IGNORE INTO t_gas_stop_approve (id, bill_id, bill_no, node_no, node_name, action, approve_by, approve_comment, approve_time, del_flag, create_by, create_time)
+VALUES (910201, 9102, 'ST2026090501', 0, '运维部门申请', 0, 'yunwei01', '调压站设备已达设计寿命30年，备件停供，申请退役停用。', DATE_SUB(NOW(), INTERVAL 22 DAY), 0, 'yunwei01', DATE_SUB(NOW(), INTERVAL 22 DAY)),
+       (910202, 9102, 'ST2026090501', 1, '安全管理部门审核', 1, 'safety01', '现场核实设备老化严重，跑冒滴漏点位多，情况属实。', DATE_SUB(NOW(), INTERVAL 21 DAY), 0, 'safety01', DATE_SUB(NOW(), INTERVAL 21 DAY)),
+       (910203, 9102, 'ST2026090501', 2, '工程技术部门评估', 1, 'eng01', '替代气源已由城西调压站并网覆盖，停供方案可行。', DATE_SUB(NOW(), INTERVAL 20 DAY), 0, 'eng01', DATE_SUB(NOW(), INTERVAL 20 DAY)),
+       (910204, 9102, 'ST2026090501', 3, '公司管理层批准', 1, 'manager01', '同意停用，按退役方案执行，同步停止后续巡检派单。', DATE_SUB(NOW(), INTERVAL 20 DAY), 0, 'manager01', DATE_SUB(NOW(), INTERVAL 20 DAY));

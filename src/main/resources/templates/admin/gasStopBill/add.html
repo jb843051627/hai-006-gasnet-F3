@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <th:block th:include="include :: header('发起燃气管段停用申请')"/>
+</head>
+<body>
+<form class="layui-form">
+    <div class="mainBox">
+        <div class="main-container">
+            <div class="layui-form-item">
+                <label class="layui-form-label">申请部门</label>
+                <div class="layui-input-block" style="padding:9px 0 0 0;color:#666">
+                    运维部门（发起后依次经：安全管理部门 → 工程技术部门 → 公司管理层）
+                </div>
+            </div>
+
+            <div class="layui-form-item">
+                <label class="layui-form-label">停用管段</label>
+                <div class="layui-input-block">
+                    <select name="pipeId" lay-verify="required" lay-search="">
+                        <option value="">请选择（仅展示在用管段）</option>
+                        <option th:each="pipe : ${pipes}" th:value="${pipe.id}"
+                                th:text="${pipe.siteNo} + ' | ' + ${pipe.siteName}"></option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="layui-form-item">
+                <label class="layui-form-label">停用理由</label>
+                <div class="layui-input-block">
+                    <textarea name="applyReason" required lay-verify="required" placeholder="请填写停用理由，如：存在重大安全隐患、已达设计寿命等"
+                              class="layui-textarea" rows="6"></textarea>
+                </div>
+            </div>
+
+            <div class="layui-form-item">
+                <div class="layui-input-block">
+                    <span class="layui-font-12" style="color:#999">
+                        提示：终审批准后系统自动将管段置为停用，并禁止该管段后续巡检任务生成（待派任务一并拦截）。
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="bottom">
+        <div class="button-container">
+            <button type="submit" class="layui-btn layui-btn-normal layui-btn-sm" lay-submit="" lay-filter="gasStopBill-apply">
+                <i class="layui-icon layui-icon-ok"></i>
+                发起申请
+                </button>
+            <button type="reset" class="layui-btn layui-btn-primary layui-btn-sm">
+                <i class="layui-icon layui-icon-refresh"></i>
+                重置
+            </button>
+        </div>
+    </div>
+</form>
+<th:block th:include="include :: footer"/>
+<script>
+    layui.use(['form', 'jquery'], function () {
+        let form = layui.form;
+        let $ = layui.jquery;
+        let MODULE_PATH = rootPath + "/gasStopBill";
+
+        form.on('submit(gasStopBill-apply)', function (data) {
+            let loading = layer.load();
+            $.ajax({
+                url: MODULE_PATH + '/apply',
+                data: data.field,
+                dataType: 'json',
+                contentType: 'application/x-www-form-urlencoded',
+                type: 'post',
+                success: function (result) {
+                    layer.close(loading);
+                    if (result.code == 200) {
+                        layer.msg(result.msg, {icon: 1, time: 1200}, function () {
+                            parent.layer.close(parent.layer.getFrameIndex(window.name));
+                            parent.layui.table.reload("gasStopBill-table");
+                        });
+                    } else {
+                        layer.msg(result.msg, {icon: 2, time: 2000});
+                    }
+                }
+            })
+            return false;
+        });
+    })
+</script>
+</body>
+</html>

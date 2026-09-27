@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.pollix.at/thymeleaf/shiro">
+<head>
+    <th:block th:include="include :: header('停用申请详情与审批履历')"/>
+</head>
+<body class="pear-container" style="padding:12px;">
+<div th:if="${bill == null}" class="layui-text" style="padding:20px;color:#FF5722">
+    停用申请不存在或已删除。
+</div>
+
+<div th:if="${bill != null}">
+    <!-- 单据头 -->
+    <div class="layui-card">
+        <div class="layui-card-header">单据信息</div>
+        <div class="layui-card-body">
+            <table class="layui-table" style="margin:0">
+                <colgroup>
+                    <col width="120"><col width="220"><col width="120"><col>
+                </colgroup>
+                <tbody>
+                <tr>
+                    <td class="layui-bg-gray">签核单号</td>
+                    <td th:text="${bill.billNo}"></td>
+                    <td class="layui-bg-gray">单据状态</td>
+                    <td>
+                        <span th:if="${bill.status == 0}" class="layui-badge layui-bg-orange">在核</span>
+                        <span th:if="${bill.status == 1}" class="layui-badge layui-bg-green">已核讫（已执行停用）</span>
+                        <span th:if="${bill.status == 2}" class="layui-badge layui-bg-gray">已否决</span>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="layui-bg-gray">停用管段</td>
+                    <td th:text="${bill.pipeNo} + ' | ' + ${bill.pipeName}"></td>
+                    <td class="layui-bg-gray">当前环节</td>
+                    <td>
+                        <span th:if="${bill.status == 0 && bill.nodeNo == 0}" class="layui-badge layui-bg-red">退回补充（待运维重新提交）</span>
+                        <span th:if="${bill.status == 0 && bill.nodeNo == 1}" class="layui-badge layui-bg-orange">① 安全管理部门审核（现场核实）</span>
+                        <span th:if="${bill.status == 0 && bill.nodeNo == 2}" class="layui-badge layui-bg-orange">② 工程技术部门评估（替代方案可行性）</span>
+                        <span th:if="${bill.status == 0 && bill.nodeNo == 3}" class="layui-badge layui-bg-orange">③ 公司管理层批准</span>
+                        <span th:if="${bill.status == 1}" style="color:#5FB878">四级审批全部通过，管段已停用，巡检任务已禁派</span>
+                        <span th:if="${bill.status == 2}" style="color:#999">审批未通过，流程终止，管段维持在用</span>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="layui-bg-gray">申请人</td>
+                    <td th:text="${bill.createBy}"></td>
+                    <td class="layui-bg-gray">发起时间</td>
+                    <td th:text="${#dates.format(bill.createTime, 'yyyy-MM-dd HH:mm:ss')}"></td>
+                </tr>
+                <tr>
+                    <td class="layui-bg-gray">停用执行时间</td>
+                    <td th:text="${bill.finishTime == null ? '—' : #dates.format(bill.finishTime, 'yyyy-MM-dd HH:mm:ss')}"></td>
+                    <td class="layui-bg-gray">备注</td>
+                    <td th:text="${bill.remark == null ? '—' : bill.remark}"></td>
+                </tr>
+                <tr>
+                    <td class="layui-bg-gray">停用理由</td>
+                    <td colspan="3" th:text="${bill.applyReason}"></td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 当前可执行动作 -->
+    <div class="layui-card" th:if="${bill.status == 0}">
+        <div class="layui-card-header">审批操作</div>
+        <div class="layui-card-body">
+            <div th:if="${bill.nodeNo != 0}" style="padding:6px 0 12px 0">
+                <button shiro:hasPermission="gasStopBill:approve" class="pear-btn pear-btn-success pear-btn-md" onclick="window.doAction('approve','同意')">
+                    <i class="layui-icon layui-icon-ok"></i> 同意，流转下一环节
+                </button>
+                <button shiro:hasPermission="gasStopBill:rollback" class="pear-btn pear-btn-warming pear-btn-md" onclick="window.doAction('rollback','退回补充')">
+                    <i class="layui-icon layui-icon-return"></i> 退回补充材料
+                </button>
+                <button shiro:hasPermission="gasStopBill:reject" class="pear-btn pear-btn-danger pear-btn-md" onclick="window.doAction('reject','否决')">
+                    <i class="layui-icon layui-icon-close"></i> 否决申请
+                </button>
+                <div style="margin-top:10px;color:#999;font-size:12px">
+                    当前环节：
+                    <span th:if="${bill.nodeNo == 1}">安全管理部门 —— 请现场核实隐患情况后签署意见</span>
+                    <span th:if="${bill.nodeNo == 2}">工程技术部门 —— 请评估替代方案可行性后签署意见</span>
+                    <span th:if="${bill.nodeNo == 3}">公司管理层 —— 批准后管段立即停用并禁止后续巡检派单</span>
+                </div>
+            </div>
+            <div th:if="${bill.nodeNo == 0}" style="padding:6px 0">
+                <button shiro:hasPermission="gasStopBill:apply" class="pear-btn pear-btn-primary pear-btn-md" onclick="window.doAction('resubmit','补充后重新提交')">
+                    <i class="layui-icon layui-icon-upload"></i> 补充材料后重新提交
+                </button>
+                <div style="margin-top:10px;color:#999;font-size:12px">
+                    单据已被退回运维部门，请补充材料（现场照片、检测报告、替代方案等）后重新提交，单据将回到退回环节继续审批。
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 审批履历 -->
+    <div class="layui-card">
+        <div class="layui-card-header">审批履历（完整留痕）</div>
+        <div class="layui-card-body">
+            <table class="layui-table" style="margin:0">
+                <colgroup>
+                    <col width="60"><col width="170"><col width="110"><col width="110"><col><col width="170">
+                </colgroup>
+                <thead>
+                <tr>
+                    <th>序</th><th>审批环节</th><th>动作</th><th>操作人</th><th>意见/说明</th><th>操作时间</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="r, st : ${approves}">
+                    <td th:text="${st.count}"></td>
+                    <td th:text="${r.nodeName}"></td>
+                    <td>
+                        <span th:if="${r.action == 0}" class="layui-badge layui-bg-blue">提交申请</span>
+                        <span th:if="${r.action == 1}" class="layui-badge layui-bg-green">同意</span>
+                        <span th:if="${r.action == 2}" class="layui-badge layui-bg-orange">退回补充</span>
+                        <span th:if="${r.action == 3}" class="layui-badge layui-bg-gray">否决</span>
+                        <span th:if="${r.action == 4}" class="layui-badge layui-bg-blue">补充后重提</span>
+                    </td>
+                    <td th:text="${r.approveBy}"></td>
+                    <td th:text="${r.approveComment}"></td>
+                    <td th:text="${#dates.format(r.approveTime, 'yyyy-MM-dd HH:mm:ss')}"></td>
+                </tr>
+                <tr th:if="${approves == null || approves.isEmpty()}">
+                    <td colspan="6" style="text-align:center;color:#999">暂无履历记录</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<th:block th:include="include :: footer"/>
+<script th:inline="javascript">
+    layui.use(['jquery', 'layer'], function () {
+        let $ = layui.jquery;
+        let layer = layui.layer;
+        let MODULE_PATH = rootPath + "/gasStopBill/";
+        let BILL_ID = /*[[${bill == null ? '' : bill.id}]]*/ '';
+
+        let labelMap = {
+            approve: {title: '同意：请填写审批意见', required: '审批意见不能为空'},
+            reject: {title: '否决：请填写否决原因（否决后流程终止）', required: '否决原因不能为空'},
+            rollback: {title: '退回补充：请填写退回意见', required: '退回意见不能为空'},
+            resubmit: {title: '补充材料：请填写补充说明', required: '补充说明不能为空'}
+        };
+
+        window.doAction = function (action, name) {
+            let cfg = labelMap[action];
+            layer.prompt({
+                title: cfg.title,
+                formType: 2,
+                area: ['460px', '160px'],
+                btn: ['确认' + name, '取消']
+            }, function (value, index) {
+                if (!value || $.trim(value) === '') {
+                    layer.msg(cfg.required, {icon: 2, time: 1500});
+                    return;
+                }
+                layer.close(index);
+                let loading = layer.load();
+                $.ajax({
+                    url: MODULE_PATH + action,
+                    data: {id: BILL_ID, comment: value},
+                    dataType: 'json',
+                    type: 'post',
+                    success: function (result) {
+                        layer.close(loading);
+                        if (result.code == 200) {
+                            layer.msg(result.msg, {icon: 1, time: 1500}, function () {
+                                parent.layui.table.reload("gasStopBill-table");
+                                location.reload();
+                            });
+                        } else {
+                            layer.msg(result.msg, {icon: 2, time: 2500});
+                        }
+                    },
+                    error: function () {
+                        layer.close(loading);
+                        layer.msg('操作失败，请稍后重试', {icon: 2});
+                    }
+                });
+            });
+        }
+    });
+</script>
+</body>
+</html>

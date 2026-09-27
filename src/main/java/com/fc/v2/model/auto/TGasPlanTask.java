@@ -53,6 +53,12 @@ public class TGasPlanTask implements Serializable {
     @ApiModelProperty(value = "派单事由与受派班组记要")
     private String content;
 
+    /** 关联管段 t_gas_pipe.id（管段停用后不再派单；为空表示不按管段拦截） */
+    @TableField("pipe_id")
+    @JsonSerialize(using = ToStringSerializer.class)
+    @ApiModelProperty(value = "关联管段（管段停用后不再派单）")
+    private Long pipeId;
+
     /** 条目情形 0待派 1已派 2派不出去 */
     @TableField("status")
     @ApiModelProperty(value = "条目情形 0待派 1已派 2派不出去")
@@ -138,6 +144,14 @@ public class TGasPlanTask implements Serializable {
 
     public void setContent(String content) {
         this.content = content;
+    }
+
+    public Long getPipeId() {
+        return pipeId;
+    }
+
+    public void setPipeId(Long pipeId) {
+        this.pipeId = pipeId;
     }
 
     public Integer getStatus() {

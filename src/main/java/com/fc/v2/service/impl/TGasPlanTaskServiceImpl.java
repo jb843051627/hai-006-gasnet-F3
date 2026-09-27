@@ -53,6 +53,9 @@ public class TGasPlanTaskServiceImpl implements ITGasPlanTaskService {
     @javax.annotation.Resource
     private TGasPlanTaskMapper gasPlanTaskMapper;
 
+    @javax.annotation.Resource
+    private com.fc.v2.mapper.auto.TGasPipeMapper gasPipeMapper;
+
     @Autowired
     private ITGasTaskDispatchService gasTaskDispatchService;
 
@@ -108,6 +111,10 @@ public class TGasPlanTaskServiceImpl implements ITGasPlanTaskService {
     public List<TGasPlanTask> listDue(Date at) {
         QueryWrapper<TGasPlanTask> qw = new QueryWrapper<TGasPlanTask>();
         qw.eq("del_flag", 0).eq("status", STATUS_WAIT).isNotNull("due_at");
+        // 已停用管段（t_gas_pipe.status=1）的任务不得派单：终审停用时虽已将存量待派
+        // 任务压为"派不出去"，此处再从查询侧拦一道，防其他通道补录的任务漏网
+        qw.and(w -> w.isNull("pipe_id")
+                .or().notInSql("pipe_id", "SELECT id FROM t_gas_pipe WHERE status = 1 AND del_flag = 0"));
         List<TGasPlanTask> waiting = this.gasPlanTaskMapper.selectList(qw);
         List<TGasPlanTask> due = new ArrayList<TGasPlanTask>();
         for (TGasPlanTask r : waiting) {
@@ -272,6 +279,14 @@ public class TGasPlanTaskServiceImpl implements ITGasPlanTaskService {
      */
     private boolean dispatchOne(TGasPlanTask task, Integer targetType, Long targetId, String targetName,
                                 Integer mode, String dispatchBy, Date at) {
+        // 手动派单兜底拦截：停用管段的任务任何通道都不得派出
+        if (task.getPipeId() != null) {
+            com.fc.v2.model.auto.TGasPipe pipe = this.gasPipeMapper.selectById(task.getPipeId());
+            if (pipe != null && pipe.getStatus() != null && pipe.getStatus() == 1) {
+                log.warn("[planTaskDispatch] 任务 {} 关联管段 {} 已停用，禁止派单", task.getId(), task.getPipeId());
+                return false;
+            }
+        }
         int overdue = overdueDays(task, at);
         TGasTaskDispatch record = new TGasTaskDispatch();
         record.setDispatchNo("DP" + new java.text.SimpleDateFormat("yyyyMMddHHmmss").format(at) + "-" + task.getId());

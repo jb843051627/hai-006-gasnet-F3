@@ -36,9 +36,30 @@ public class TGasStopBill implements Serializable {
     @ApiModelProperty(value = "停用申请签核单号")
     private String billNo;
 
-    /** 当前所在道 0..2（运维提/安全核/工程评） */
+    /** 申请停用管段 t_gas_pipe.id */
+    @TableField("pipe_id")
+    @JsonSerialize(using = ToStringSerializer.class)
+    @ApiModelProperty(value = "申请停用管段")
+    private Long pipeId;
+
+    /** 管段档案代号(申请时快照) */
+    @TableField("pipe_no")
+    @ApiModelProperty(value = "管段档案代号(申请时快照)")
+    private String pipeNo;
+
+    /** 管段档案名称(申请时快照) */
+    @TableField("pipe_name")
+    @ApiModelProperty(value = "管段档案名称(申请时快照)")
+    private String pipeName;
+
+    /** 停用申请理由(重大隐患/到达设计寿命等) */
+    @TableField("apply_reason")
+    @ApiModelProperty(value = "停用申请理由")
+    private String applyReason;
+
+    /** 当前所在道 0运维申请(退回补充) 1安全审核 2工程评估 3管理批准 4已终审 */
     @TableField("node_no")
-    @ApiModelProperty(value = "当前所在道 0..2（运维提/安全核/工程评）")
+    @ApiModelProperty(value = "当前所在道 0运维申请(退回补充) 1安全审核 2工程评估 3管理批准 4已终审")
     private Integer nodeNo;
 
     /** 同口并印办法 0任一人 1两名点齐 */
@@ -56,10 +77,16 @@ public class TGasStopBill implements Serializable {
     @ApiModelProperty(value = "本口已落印数")
     private Integer signCount;
 
-    /** 报批情形 0在核 1已核讫 2已打回 */
+    /** 报批情形 0在核 1已核讫(已停用) 2已否决 */
     @TableField("status")
-    @ApiModelProperty(value = "报批情形 0在核 1已核讫 2已打回")
+    @ApiModelProperty(value = "报批情形 0在核 1已核讫(已停用) 2已否决")
     private Integer status;
+
+    /** 终审批准并执行停用时间 */
+    @TableField("finish_time")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    @ApiModelProperty(value = "终审批准并执行停用时间")
+    private Date finishTime;
 
     /** 删除标记 0正常 1删除 */
     @TableField("del_flag")
@@ -109,6 +136,38 @@ public class TGasStopBill implements Serializable {
         this.billNo = billNo;
     }
 
+    public Long getPipeId() {
+        return pipeId;
+    }
+
+    public void setPipeId(Long pipeId) {
+        this.pipeId = pipeId;
+    }
+
+    public String getPipeNo() {
+        return pipeNo;
+    }
+
+    public void setPipeNo(String pipeNo) {
+        this.pipeNo = pipeNo;
+    }
+
+    public String getPipeName() {
+        return pipeName;
+    }
+
+    public void setPipeName(String pipeName) {
+        this.pipeName = pipeName;
+    }
+
+    public String getApplyReason() {
+        return applyReason;
+    }
+
+    public void setApplyReason(String applyReason) {
+        this.applyReason = applyReason;
+    }
+
     public Integer getNodeNo() {
         return nodeNo;
     }
@@ -147,6 +206,14 @@ public class TGasStopBill implements Serializable {
 
     public void setStatus(Integer status) {
         this.status = status;
+    }
+
+    public Date getFinishTime() {
+        return finishTime;
+    }
+
+    public void setFinishTime(Date finishTime) {
+        this.finishTime = finishTime;
     }
 
     public Integer getDelFlag() {
